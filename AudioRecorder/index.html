@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <button id="record">Start Recording</button>
+  <button id="save" disabled>Save WAV</button>
+  <div id="status">Ready</div>
+  
+  <script>
+    const fs = require('fs');
+    const path = require('path');
+    
+    let mediaRecorder;
+    let audioChunks = [];
+    let audioContext;
+    let isRecording = false;
+    
+    // Get buttons
+    const recordBtn = document.getElementById('record');
+    const saveBtn = document.getElementById('save');
+    const status = document.getElementById('status');
+    
+    // Start/Stop recording
+    recordBtn.onclick = async () => {
+      if (!isRecording) {
+        // Start recording
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioContext = new AudioContext({ sampleRate: 16000 }); // 16kHz for whisper.cpp
+        
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        
+        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          saveBtn.disabled = false;
+          status.textContent = 'Recording saved - click Save WAV';
+        };
+        
+        mediaRecorder.start();
+        isRecording = true;
+        recordBtn.textContent = 'Stop Recording';
+        status.textContent = 'Recording...';
+      } else {
+        // Stop recording
+        mediaRecorder.stop();
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        isRecording = false;
+        recordBtn.textContent = 'Start Recording';
+      }
+    };
+    
+    // Save as WAV file
+    saveBtn.onclick = async () => {
+      const audioBlob = new Blob(audioChunks);
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      
+      // Decode audio to raw PCM
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      
+      // Convert to 16kHz mono WAV
+      const wavBuffer = audioBufferToWav(audioBuffer);
+      
+      // Save file
+      const savePath = path.join(__dirname, `recording-${Date.now()}.wav`);
+      fs.writeFileSync(savePath, Buffer.from(wavBuffer));
+      
+      status.textContent = `Saved: ${savePath}`;
+      saveBtn.disabled = true;
+    };
+    
+    // Convert AudioBuffer to WAV format (16-bit PCM, mono, 16kHz)
+    function audioBufferToWav(audioBuffer) {
+      const numChannels = 1; // Mono
+      const sampleRate = 16000; // 16kHz for whisper
+      const format = 1; // PCM
+      const bitDepth = 16;
+      
+      // Resample to 16kHz and convert to mono
+      const length = Math.ceil(audioBuffer.duration * sampleRate);
+      const result = new Float32Array(length);
+      const offsetResult = audioBuffer.length / length;
+      
+      // Mix down to mono and resample
+      for (let i = 0; i < length; i++) {
+        const offset = Math.floor(i * offsetResult);
+        let sum = 0;
+        for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
+          sum += audioBuffer.getChannelData(ch)[offset] || 0;
+        }
+        result[i] = sum / audioBuffer.numberOfChannels;
+      }
+      
+      // Create WAV file buffer
+      const buffer = new ArrayBuffer(44 + result.length * 2);
+      const view = new DataView(buffer);
+      
+      // WAV header
+      writeString(view, 0, 'RIFF');
+      view.setUint32(4, 36 + result.length * 2, true);
+      writeString(view, 8, 'WAVE');
+      writeString(view, 12, 'fmt ');
+      view.setUint32(16, 16, true); // fmt chunk size
+      view.setUint16(20, format, true);
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * numChannels * bitDepth / 8, true);
+      view.setUint16(32, numChannels * bitDepth / 8, true);
+      view.setUint16(34, bitDepth, true);
+      writeString(view, 36, 'data');
+      view.setUint32(40, result.length * 2, true);
+      
+      // Write PCM samples
+      let offset = 44;
+      for (let i = 0; i < result.length; i++) {
+        const s = Math.max(-1, Math.min(1, result[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        offset += 2;
+      }
+      
+      return buffer;
+    }
+    
+    function writeString(view, offset, string) {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    }
+  </script>
+</body>
+</html>

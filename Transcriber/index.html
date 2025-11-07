@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<body style="padding: 20px; font-family: Arial;">
+  <h2>Whisper.cpp Transcriber</h2>
+  <button id="selectFile">Select WAV File</button>
+  <button id="transcribe" disabled>Transcribe</button>
+  
+  <div id="status" style="margin: 15px 0; color: #666;">Ready</div>
+  <div id="progress" style="margin: 10px 0; font-size: 12px; color: #999;"></div>
+  
+  <h3>Transcription:</h3>
+  <div id="output" style="border: 1px solid #ccc; padding: 10px; min-height: 100px; white-space: pre-wrap;"></div>
+  
+  <script>
+    const { ipcRenderer } = require('electron');
+    
+    let selectedFile = null;
+    
+    // File selection
+    document.getElementById('selectFile').onclick = async () => {
+      selectedFile = await ipcRenderer.invoke('select-file');
+      if (selectedFile) {
+        document.getElementById('status').textContent = `Selected: ${selectedFile}`;
+        document.getElementById('transcribe').disabled = false;
+      }
+    };
+    
+    // Transcription
+    document.getElementById('transcribe').onclick = async () => {
+      if (!selectedFile) return;
+      
+      document.getElementById('status').textContent = 'Transcribing...';
+      document.getElementById('transcribe').disabled = true;
+      document.getElementById('output').textContent = '';
+      
+      try {
+        const transcription = await ipcRenderer.invoke('transcribe', selectedFile);
+        document.getElementById('output').textContent = transcription;
+        document.getElementById('status').textContent = 'Complete!';
+      } catch (error) {
+        document.getElementById('status').textContent = 'Error: ' + error.message;
+      }
+      
+      document.getElementById('transcribe').disabled = false;
+    };
+    
+    // Show progress updates
+    ipcRenderer.on('progress', (event, data) => {
+      document.getElementById('progress').textContent = data;
+    });
+  </script>
+</body>
+</html>
