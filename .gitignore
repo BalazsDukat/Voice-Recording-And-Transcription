@@ -35,6 +35,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# large static and media files
 *.exe
 *.bin
 *.wav
