@@ -1,4 +1,4 @@
-# Voice-Recognition-And-Transcription
+# Voice-Recording-And-Transcription
 Put together by Balazs Dukat in November 2025
 An Electron app to record and transcribe voice
 
