@@ -39,3 +39,5 @@ next-env.d.ts
 *.exe
 *.bin
 *.wav
+*.zip
+*.mp3

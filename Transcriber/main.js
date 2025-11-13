@@ -18,7 +18,7 @@ app.whenReady().then(() => {
 ipcMain.handle('select-file', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile'],
-    filters: [{ name: 'Audio', extensions: ['wav'] }]
+    filters: [{ name: 'Audio', extensions: [] }]
   });
   return result.filePaths[0];
 });
@@ -27,8 +27,8 @@ ipcMain.handle('select-file', async () => {
 ipcMain.handle('transcribe', async (event, audioPath) => {
   return new Promise((resolve, reject) => {
     // Paths to whisper.exe and model (adjust to your setup)
-    const whisperPath = path.join(__dirname, 'resources', 'whisper.exe');
-    const modelPath = path.join(__dirname, 'resources', 'ggml-base.en.bin'); // base model, English only
+    const whisperPath = path.join(__dirname, 'resources', 'whisper-cli.exe');
+    const modelPath = path.join(__dirname, 'resources/models', 'ggml-base.en.bin'); // base model, English only
     
     // Spawn whisper process
     const whisper = spawn(whisperPath, [
@@ -36,7 +36,8 @@ ipcMain.handle('transcribe', async (event, audioPath) => {
       '-f', audioPath,        // Audio file
       '-t', '8',              // Threads
       '-l', 'en',             // Language (English)
-      '--no-timestamps'       // Clean output
+      '-di',                  // Diarization
+      '--no-timestamps'       // No timestamps in output
     ]);
     
     let output = '';
